@@ -114,7 +114,7 @@ const App = () => {
           className="absolute bottom-32 md:bottom-20 z-20 pointer-events-none"
         >
           <img 
-            src="public/racecar.png" 
+            src="/racecar.png" 
             alt="Racing Car" 
             className="w-56 md:w-[36rem] drop-shadow-[0_30px_50px_rgba(0,0,0,0.9)]"
           />
