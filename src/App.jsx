@@ -1,12 +1,16 @@
 import { motion, useScroll, useSpring, useTransform } from "framer-motion";
-import { FaPhoneAlt, FaMapMarkerAlt, FaFlagCheckered, FaClock } from 'react-icons/fa';
+import { FaPhoneAlt, FaMapMarkerAlt, FaFlagCheckered, FaClock, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
+import { Analytics } from "@vercel/analytics/react";
 
 // --- Components ---
 
 const Countdown = () => {
   const calculateTimeLeft = () => {
-    const difference = +new Date("2026-03-07T14:00:00") - +new Date();
+    const eventDate = new Date("2026-03-07T14:00:00");
+    const now = new Date();
+    const difference = +eventDate - +now;
+    
     let timeLeft = {};
     if (difference > 0) {
       timeLeft = {
@@ -16,34 +20,48 @@ const Countdown = () => {
         seconds: Math.floor((difference / 1000) % 60),
       };
     }
-    return timeLeft;
+    return { timeLeft, difference, isSameDay: now.toDateString() === eventDate.toDateString() };
   };
 
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+  const [status, setStatus] = useState(calculateTimeLeft());
 
   useEffect(() => {
-    const timer = setTimeout(() => setTimeLeft(calculateTimeLeft()), 1000);
-    return () => clearTimeout(timer);
-  });
+    const timer = setInterval(() => setStatus(calculateTimeLeft()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (status.difference <= 0) {
+    return (
+      <motion.div 
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="mt-8 text-center px-4"
+      >
+        <span className="text-2xl md:text-4xl font-black uppercase italic text-primary-green drop-shadow-lg leading-tight">
+          {status.isSameDay ? "🎂 Happy 8th Birthday Christian! The Race is On!" : "🏆 The Race is Won! Thanks for Coming!"}
+        </span>
+      </motion.div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-4 gap-2 md:gap-4 mt-8 font-mono text-primary-green">
-      {Object.keys(timeLeft).length ? (
-        Object.entries(timeLeft).map(([label, value]) => (
-          <div key={label} className="flex flex-col items-center bg-black/40 p-2 rounded-lg border border-primary-green/20 backdrop-blur-sm">
-            <span className="text-2xl md:text-5xl font-black leading-none">{value.toString().padStart(2, '0')}</span>
-            <span className="text-[10px] md:text-xs uppercase opacity-60 tracking-tighter mt-1">{label}</span>
-          </div>
-        ))
-      ) : (
-        <span className="col-span-4 text-2xl font-black uppercase italic animate-bounce text-primary-green">Start Your Engines!</span>
-      )}
+      {Object.entries(status.timeLeft).map(([label, value]) => (
+        <div key={label} className="flex flex-col items-center bg-black/40 p-2 rounded-lg border border-primary-green/20 backdrop-blur-sm">
+          <span className="text-2xl md:text-5xl font-black leading-none">{value.toString().padStart(2, '0')}</span>
+          <span className="text-[10px] md:text-xs uppercase opacity-60 tracking-tighter mt-1">{label}</span>
+        </div>
+      ))}
     </div>
   );
 };
 
 const App = () => {
   const containerRef = useRef(null);
+  const revAudioCar = useRef(null);
+  const revAudioButton = useRef(null);
+  const [isMuted, setIsMuted] = useState(true);
+
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
@@ -56,15 +74,52 @@ const App = () => {
   const lng = 36.8122;
   const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.005}%2C${lat-0.005}%2C${lng+0.005}%2C${lat+0.005}&layer=mapnik&marker=${lat}%2C${lng}`;
 
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 30 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100 } }
+  // --- Audio Handlers ---
+
+  const playButtonRev = () => {
+    if (!isMuted && revAudioButton.current) {
+      revAudioButton.current.currentTime = 0;
+      revAudioButton.current.play().catch(e => {});
+    }
   };
+
+  const stopButtonRev = () => {
+    if (revAudioButton.current) {
+      revAudioButton.current.pause();
+      revAudioButton.current.currentTime = 0;
+    }
+  };
+
+  // Sync Car Sound with Animation
+  useEffect(() => {
+    if (isMuted) {
+      if (revAudioCar.current) revAudioCar.current.pause();
+      return;
+    }
+
+    const playCarRev = () => {
+      if (revAudioCar.current) {
+        revAudioCar.current.currentTime = 0;
+        revAudioCar.current.play().catch(e => {});
+      }
+    };
+
+    // Animation Cycle: 1s delay + 6s drift + 5s repeatDelay = 12s total cycle
+    // We start the sound immediately (t=0) and the car starts moving at t=1
+    playCarRev();
+    const interval = setInterval(playCarRev, 12000);
+    return () => clearInterval(interval);
+  }, [isMuted]);
 
   return (
     <div ref={containerRef} className="min-h-screen w-full bg-dark-bg text-light-text font-sans overflow-x-hidden selection:bg-primary-green selection:text-dark-bg">
+      <Analytics />
       
-      {/* Racing Progress Bar */}
+      {/* 🔊 Audio Elements */}
+      <audio ref={revAudioCar} src="/rev.mp3" preload="auto" />
+      <audio ref={revAudioButton} src="/rev2.mp3" preload="auto" />
+
+      {/* 🏎️ Racing Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1.5 md:h-2 bg-black/50 z-50">
         <motion.div className="h-full bg-primary-green shadow-[0_0_15px_#39FF14]" style={{ scaleX }} />
         <motion.div 
@@ -75,15 +130,23 @@ const App = () => {
         </motion.div>
       </div>
 
+      {/* 🔇 Mute/Unmute Toggle */}
+      <button 
+        onClick={() => setIsMuted(!isMuted)}
+        className="fixed bottom-6 right-6 z-50 bg-primary-green text-dark-bg p-4 rounded-full shadow-lg hover:scale-110 transition-transform active:scale-90"
+      >
+        {isMuted ? <FaVolumeMute size={24} /> : <FaVolumeUp size={24} className="animate-pulse" />}
+      </button>
+
       {/* Hero Section */}
-      <section className="h-screen flex flex-col justify-center items-center px-4 relative overflow-hidden">
+      <section className="h-screen flex flex-col justify-center items-center px-4 relative overflow-hidden text-center">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary-green/10 via-transparent to-transparent pointer-events-none" />
         
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 1, ease: "easeOut" }}
-          className="text-center z-10"
+          className="z-10 w-full"
         >
           <motion.div 
             animate={{ opacity: [0.6, 1, 0.6] }}
@@ -103,13 +166,13 @@ const App = () => {
           </h2>
         </motion.div>
 
-        {/* 🚗 DRIFTING CAR */}
+        {/* 🚗 DRIFTING CAR - Now Synced with Sound */}
         <motion.div 
           initial={{ x: '100vw', y: 0 }}
           animate={{ x: '-100vw', y: [0, -5, 0] }}
           transition={{ 
-            x: { duration: 6, repeat: Infinity, repeatDelay: 5, ease: "linear" },
-            y: { duration: 0.2, repeat: Infinity, ease: "easeInOut" } // Vibrating effect
+            x: { duration: 6, repeat: Infinity, repeatDelay: 5, ease: "linear", delay: 1 }, // 1s delay for sound lead
+            y: { duration: 0.2, repeat: Infinity, ease: "easeInOut" }
           }}
           className="absolute bottom-32 md:bottom-20 z-20 pointer-events-none"
         >
@@ -158,7 +221,7 @@ const App = () => {
             <h3 className="text-4xl md:text-7xl font-black text-primary-green uppercase italic tracking-tighter mb-8">
               The Starting Grid
             </h3>
-            <p className="text-lg md:text-3xl leading-relaxed text-light-text/90 font-medium max-w-3xl mx-auto">
+            <p className="text-lg md:text-3xl leading-relaxed text-light-text/90 font-medium max-w-3xl mx-auto text-center">
               Christian is hitting the fast lane as he turns 8! Get ready for a high-octane celebration at the <span className="text-primary-green">Village Market</span>. 
             </p>
           </motion.div>
@@ -175,8 +238,8 @@ const App = () => {
                 <FaMapMarkerAlt size={32} />
                 <h4 className="text-3xl font-black uppercase italic tracking-tighter">The Track</h4>
               </div>
-              <p className="text-2xl font-bold text-white mb-2">Village Market</p>
-              <p className="text-lg opacity-60 italic mb-6">Limuru Road, Nairobi, Kenya</p>
+              <p className="text-2xl font-bold text-white mb-2 text-left">Village Market</p>
+              <p className="text-lg opacity-60 italic mb-6 text-left">Limuru Road, Nairobi, Kenya</p>
               <div className="flex items-center space-x-3 text-primary-green font-black text-2xl uppercase italic">
                 <FaClock size={20} />
                 <span>Start: 2:00 PM</span>
@@ -194,14 +257,18 @@ const App = () => {
                 <FaPhoneAlt size={28} />
                 <h4 className="text-3xl font-black uppercase italic tracking-tighter">Crew Chief</h4>
               </div>
-              <p className="text-2xl font-bold text-white mb-2">RSVP to Mercy</p>
-              <p className="text-lg opacity-60 italic mb-8">Confirm your pit stop on the official guest list!</p>
+              <p className="text-2xl font-bold text-white mb-2 text-left">RSVP to Mercy</p>
+              <p className="text-lg opacity-60 italic mb-8 text-left">Confirm your pit stop on the official guest list!</p>
               
               <motion.a 
+                onMouseEnter={playButtonRev}
+                onMouseLeave={stopButtonRev}
+                onTouchStart={playButtonRev}
+                onTouchEnd={stopButtonRev}
                 whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(57,255,20,0.6)" }}
                 whileTap={{ scale: 0.95, x: [0, -2, 2, -2, 2, 0] }}
                 href="tel:+254721468843"
-                className="inline-flex items-center justify-center w-full md:w-auto bg-primary-green text-dark-bg font-black py-5 px-10 rounded-2xl uppercase tracking-tighter italic text-xl shadow-[0_10px_20px_rgba(57,255,20,0.3)]"
+                className="inline-flex items-center justify-center w-full md:w-auto bg-primary-green text-dark-bg font-black py-5 px-10 rounded-2xl uppercase tracking-tighter italic text-xl shadow-[0_10px_20px_rgba(57,255,20,0.3)] cursor-pointer"
               >
                 <FaPhoneAlt className="mr-3" />
                 Rev to Call
@@ -236,13 +303,13 @@ const App = () => {
         </div>
       </section>
 
-      {/* RE-VAMPED CLEAN FOOTER */}
+      {/* FOOTER */}
       <footer className="py-20 text-center border-t border-primary-green/10 bg-dark-bg">
         <motion.div
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 3, repeat: Infinity }}
         >
-          <p className="text-primary-green font-black text-2xl md:text-5xl uppercase italic tracking-widest mb-4">
+          <p className="text-primary-green font-black text-2xl md:text-5xl uppercase italic tracking-widest mb-4 px-4">
             Ready. Set. Celebrate!
           </p>
         </motion.div>
@@ -255,7 +322,7 @@ const App = () => {
 
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="text-primary-green/40 hover:text-primary-green transition-colors uppercase text-[10px] font-black tracking-[0.5em]"
+          className="text-primary-green/40 hover:text-primary-green transition-colors uppercase text-[10px] font-black tracking-[0.5em] cursor-pointer"
         >
           Back to Start
         </button>

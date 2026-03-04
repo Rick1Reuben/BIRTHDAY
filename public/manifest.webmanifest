@@ -1,0 +1,15 @@
+{
+  "name": "Christian's 8th Birthday",
+  "short_name": "Christian8",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#39FF14",
+  "icons": [
+    {
+      "src": "/racecar.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
